@@ -1,143 +1,107 @@
 <?php
-// ============================================================
-//  admin/dashboard.php — Admin Dashboard
-//  Open at: http://localhost/school-website/admin/dashboard.php
-// ============================================================
 session_start();
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+if (session_status() === PHP_SESSION_NONE){
+    session_star();
+}
 
-// Guard: redirect to login if not authenticated
-requireAdmin();
+requireAdminLogin();
 
-$adminName = $_SESSION['admin_name'];
-$pageTitle = 'Dashboard';
+$allNews      = getAllNews($pdo);
+$unread       = getUnreadCount($pdo);
+$enquiries    = getAllEnquiries($pdo);
+$school_name  = getSetting($pdo, 'school_name');
+$recent_log   = getAuditLog($pdo, 10);
 
-// Dashboard stat counts
-$totalNews      = (int)$pdo->query('SELECT COUNT(*) FROM news WHERE is_published = 1')->fetchColumn();
-$totalDrafts    = (int)$pdo->query('SELECT COUNT(*) FROM news WHERE is_published = 0')->fetchColumn();
-$newEnquiries   = (int)$pdo->query("SELECT COUNT(*) FROM admissions_enquiries WHERE status = 'new'")->fetchColumn();
-$unreadMessages = (int)$pdo->query('SELECT COUNT(*) FROM contact_messages WHERE is_read = 0')->fetchColumn();
-
-// Recent 5 news articles
-$recentNews = $pdo->query(
-    'SELECT id, title, is_published, created_at FROM news ORDER BY created_at DESC LIMIT 5'
-)->fetchAll();
-
-// Recent 5 contact messages
-$recentMessages = $pdo->query(
-    'SELECT id, name, subject, is_read, created_at FROM contact_messages ORDER BY created_at DESC LIMIT 5'
-)->fetchAll();
+// Count new enquiries
+$new_enquiries = array_filter($enquiries, fn($e) => $e['status'] === 'new');
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="/school-website/assets/css/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
+    <style>
+        body { font-family:Arial,sans-serif; background:#f4f4f4; }
+        .topbar { background:#0B1F3A; color:#fff; padding:1rem 2rem; display:flex; justify-content:space-between; align-items:center; }
+        .topbar a { color:#f0a500; text-decoration:none; }
+        main { max-width:1100px; margin:2rem auto; padding:0 1rem; }
+        .stats { display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:2rem; }
+        .stat-card { flex:1; min-width:180px; background:#fff; padding:1.5rem; border-radius:8px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,0.1); border-top:4px solid #0B1F3A; }
+        .stat-card .number { font-size:2rem; font-weight:bold; color:#0B1F3A; }
+        .stat-card .label  { color:#666; font-size:0.9rem; margin-top:0.3rem; }
+        .quick-links { display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:2rem; }
+        .quick-links a { background:#0B1F3A; color:#fff; padding:0.8rem 1.5rem; border-radius:6px; text-decoration:none; font-size:0.95rem; }
+        .quick-links a:hover { background:#f0a500; color:#000; }
+        .card { background:#fff; padding:1.5rem; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.1); margin-bottom:1.5rem; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:0.6rem 0.8rem; border-bottom:1px solid #eee; text-align:left; font-size:0.88rem; }
+        th { color:#555; font-weight:bold; }
+        .badge-red { background:#c0392b; color:#fff; padding:0.15rem 0.5rem; border-radius:8px; font-size:0.75rem; }
+    </style>
 </head>
 <body>
 
-<div class="admin-layout">
-
-    <!-- ── SIDEBAR ── -->
-    <?php include 'sidebar.php'; ?>
-
-    <!-- ── MAIN CONTENT ── -->
-    <main class="admin-main">
-        <h1 class="admin-title">Welcome back, <?= htmlspecialchars($adminName) ?> 👋</h1>
-
-        <!-- Stat cards -->
-        <div class="stat-cards">
-            <div class="stat-card">
-                <div class="stat-card-num" style="color:var(--blue)"><?= $totalNews ?></div>
-                <div class="stat-card-label">Published Articles</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-card-num" style="color:var(--orange)"><?= $newEnquiries ?></div>
-                <div class="stat-card-label">New Enquiries</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-card-num" style="color:var(--teal)"><?= $unreadMessages ?></div>
-                <div class="stat-card-label">Unread Messages</div>
-            </div>
-        </div>
-
-        <!-- Quick actions -->
-        <div style="display:flex;gap:.75rem;margin-bottom:2rem;flex-wrap:wrap">
-            <a href="add-news.php" class="btn btn-blue btn-sm">+ Add Article</a>
-            <a href="messages.php" class="btn btn-sm">View Messages <?= $unreadMessages > 0 ? "($unreadMessages)" : '' ?></a>
-            <a href="/school-website/" target="_blank" class="btn btn-sm">View Website ↗</a>
-        </div>
-
-        <!-- Recent articles -->
-        <h2 style="font-size:1.15rem;margin-bottom:1rem;color:var(--navy)">Recent Articles</h2>
-        <table class="admin-table" style="margin-bottom:2rem">
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if ($recentNews): ?>
-                <?php foreach ($recentNews as $n): ?>
-                <tr>
-                    <td><?= htmlspecialchars($n['title']) ?></td>
-                    <td>
-                        <span class="badge <?= $n['is_published'] ? 'badge-green' : 'badge-orange' ?>">
-                            <?= $n['is_published'] ? 'Published' : 'Draft' ?>
-                        </span>
-                    </td>
-                    <td><?= date('d M Y', strtotime($n['created_at'])) ?></td>
-                    <td>
-                        <a href="edit-news.php?id=<?= $n['id'] ?>"
-                           style="color:var(--blue);font-size:.9rem">Edit</a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                <?php else: ?>
-                <tr><td colspan="4" style="color:var(--muted)">No articles yet.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-
-        <!-- Recent messages -->
-        <h2 style="font-size:1.15rem;margin-bottom:1rem;color:var(--navy)">Recent Messages</h2>
-        <table class="admin-table">
-            <thead>
-                <tr>
-                    <th>From</th>
-                    <th>Subject</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if ($recentMessages): ?>
-                <?php foreach ($recentMessages as $m): ?>
-                <tr style="<?= !$m['is_read'] ? 'font-weight:600' : '' ?>">
-                    <td><?= htmlspecialchars($m['name']) ?></td>
-                    <td><?= htmlspecialchars($m['subject']) ?></td>
-                    <td><?= date('d M Y', strtotime($m['created_at'])) ?></td>
-                    <td>
-                        <span class="badge <?= $m['is_read'] ? 'badge-green' : 'badge-red' ?>">
-                            <?= $m['is_read'] ? 'Read' : 'Unread' ?>
-                        </span>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                <?php else: ?>
-                <tr><td colspan="4" style="color:var(--muted)">No messages yet.</td></tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-
-    </main>
+<div class="topbar">
+    <span>⚙️ Admin Panel — <?php echo htmlspecialchars($school_name); ?></span>
+    <span>Welcome, <?php echo htmlspecialchars($_SESSION['admin_name']); ?> &nbsp;|&nbsp;
+        <a href="<?php echo BASE_URL; ?>index.php" target="_blank">View Site</a> &nbsp;|&nbsp;
+        <a href="<?php echo BASE_URL; ?>admin/logout.php">Logout</a>
+    </span>
 </div>
 
+<main>
+    <h1>Dashboard</h1>
+
+    <!-- STATS -->
+    <div class="stats">
+        <div class="stat-card">
+            <div class="number"><?php echo count($allNews); ?></div>
+            <div class="label">Total Articles</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" style="color:#c0392b;"><?php echo $unread; ?></div>
+            <div class="label">Unread Messages</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" style="color:#f0a500;"><?php echo count($new_enquiries); ?></div>
+            <div class="label">New Enquiries</div>
+        </div>
+        <div class="stat-card">
+            <div class="number"><?php echo count($enquiries); ?></div>
+            <div class="label">Total Enquiries</div>
+        </div>
+    </div>
+
+    <!-- QUICK LINKS -->
+    <div class="quick-links">
+        <a href="<?php echo BASE_URL; ?>admin/manage-news.php">📰 Manage News</a>
+        <a href="<?php echo BASE_URL; ?>admin/messages.php">✉️ Messages <?php if ($unread > 0): ?><span class="badge-red"><?php echo $unread; ?></span><?php endif; ?></a>
+        <a href="<?php echo BASE_URL; ?>admin/manage-enquiries.php">📋 Enquiries <?php if (count($new_enquiries) > 0): ?><span class="badge-red"><?php echo count($new_enquiries); ?></span><?php endif; ?></a>
+        <a href="<?php echo BASE_URL; ?>admin/manage-staff.php">👥 Staff</a>
+        <a href="<?php echo BASE_URL; ?>admin/manage-events.php">📅 Events</a>
+    </div>
+
+    <!-- RECENT AUDIT LOG -->
+    <?php if ($recent_log): ?>
+    <div class="card">
+        <h2>Recent Activity Log</h2>
+        <table>
+            <tr><th>Action</th><th>Table</th><th>Admin</th><th>Time</th></tr>
+            <?php foreach ($recent_log as $log): ?>
+            <tr>
+                <td><?php echo htmlspecialchars($log['action']); ?></td>
+                <td><?php echo htmlspecialchars($log['table_name'] ?? '—'); ?></td>
+                <td><?php echo htmlspecialchars($log['admin_name'] ?? 'System'); ?></td>
+                <td><?php echo date('d M Y H:i', strtotime($log['created_at'])); ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </table>
+    </div>
+    <?php endif; ?>
+
+</main>
 </body>
 </html>

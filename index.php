@@ -1,195 +1,178 @@
 <?php
-// ============================================================
-//  index.php — Homepage
-//  school-website/index.php
-//  Open at: http://localhost/school-website/
-// ============================================================
 session_start();
 require_once 'config/database.php';
 require_once 'includes/functions.php';
+require_once 'includes/header.php';
 
-$pageTitle = getSetting($pdo, 'school_name') . ' — Home';
-
-// ── FETCH DATA FROM DATABASE ──────────────────────────────────
-
-// Latest 3 published news articles
-$stmt = $pdo->query(
-    'SELECT n.id, n.title, n.slug, n.excerpt, n.featured_image,
-            n.published_at,
-            nc.name  AS cat_name,
-            nc.color AS cat_color
-     FROM news n
-     LEFT JOIN news_categories nc ON nc.id = n.category_id
-     WHERE n.is_published = 1
-     ORDER BY n.published_at DESC
-     LIMIT 3'
-);
-$latestNews = $stmt->fetchAll();
-
-// Upcoming events (today or future, max 4)
-$events = $pdo->query(
-    'SELECT * FROM events
-     WHERE is_published = 1
-       AND event_date >= CURDATE()
-     ORDER BY event_date ASC
-     LIMIT 4'
-)->fetchAll();
-
-// Published testimonials
-$testimonials = $pdo->query(
-    'SELECT * FROM testimonials
-     WHERE is_published = 1
-     ORDER BY sort_order ASC
-     LIMIT 3'
-)->fetchAll();
-
-// Page content blocks
-$heroTitle    = getSetting($pdo, 'hero_title');
-$heroSubtitle = getSetting($pdo, 'hero_subtitle');
-$foundedYear  = getSetting($pdo, 'founded_year');
-$totalStudents= getSetting($pdo, 'total_students');
+$school_name = getSetting($pdo, 'school_name');
+$hero_title  = getPageContent($pdo, 'home', 'hero_title');
+$hero_sub    = getPageContent($pdo, 'home', 'hero_subtitle');
+$founded     = getSetting($pdo, 'founded_year');
+$students    = getSetting($pdo, 'total_students');
+$events      = getUpcomingEvents($pdo, 3);
+$testimonials= getTestimonials($pdo);
 ?>
-<?php require_once 'includes/header.php'; ?>
 
-<!-- ── HERO SECTION ── -->
-<section class="hero">
-    <div class="container">
-        <h1><?= htmlspecialchars($heroTitle ?: getSetting($pdo,'school_name')) ?></h1>
-        <p><?= htmlspecialchars($heroSubtitle ?: 'Shaping tomorrow\'s leaders through quality education.') ?></p>
-        <div class="hero-btns">
-            <a href="admissions.php" class="btn btn-primary">Apply Now</a>
-            <a href="about.php"      class="btn btn-outline">Learn More</a>
-        </div>
-    </div>
-</section>
+<main id="main-content">
 
-<!-- ── STATS BAR ── -->
-<section class="stats-bar">
-    <div class="container stats-grid">
-        <?php
-        $stats = [
-            ['Founded',  $foundedYear ?: '1985'],
-            ['Students', ($totalStudents ?: '1200') . '+'],
-            ['Teachers', '60+'],
-            ['Subjects', '18+'],
-        ];
-        foreach ($stats as [$label, $value]):
-        ?>
-        <div>
-            <div class="stat-num"><?= htmlspecialchars($value) ?></div>
-            <div class="stat-label"><?= htmlspecialchars($label) ?></div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-</section>
-
-<!-- ── LATEST NEWS ── -->
-<section class="section">
-    <div class="container">
-        <h2 class="section-title">Latest News</h2>
-        <p class="section-sub">Stay up to date with what is happening at school.</p>
-
-        <?php if ($latestNews): ?>
-        <div class="cards-grid">
-            <?php foreach ($latestNews as $article): ?>
-            <div class="card">
-                <?php if ($article['featured_image']): ?>
-                <img class="card-img"
-                     src="<?= htmlspecialchars($article['featured_image']) ?>"
-                     alt="<?= htmlspecialchars($article['title']) ?>">
-                <?php endif; ?>
-
-                <div class="card-body">
-                    <span class="card-badge"
-                          style="background:<?= htmlspecialchars($article['cat_color'] ?? '#1565C0') ?>">
-                        <?= htmlspecialchars($article['cat_name'] ?? 'News') ?>
-                    </span>
-                    <h3><?= htmlspecialchars($article['title']) ?></h3>
-                    <p><?= excerpt($article['excerpt'] ?? '', 120) ?></p>
-                </div>
-
-                <div class="card-footer">
-                    <a href="article.php?slug=<?= urlencode($article['slug']) ?>">Read more →</a>
-                    <span><?= date('d M Y', strtotime($article['published_at'])) ?></span>
+    <!-- HERO -->
+    <section class="hero">
+        <div class="hero-inner">
+            <div class="hero-content">
+                <span class="hero-badge">🎓 Admissions Open For 2027</span>
+                <h1><?php echo htmlspecialchars($hero_title ?: "Shaping Minds, Building"); ?> <span>Character</span></h1>
+                <p class="hero-sub"><?php echo htmlspecialchars($hero_sub ?: "St. Mary's School provides a nurturing environment where students excel academically, grow in faith, and develop into confident, principled leaders of tomorrow."); ?></p>
+                <div class="hero-actions">
+                    <a href="<?php echo BASE_URL; ?>admissions.php" class="btn btn-primary">Apply Now →</a>
+                    <a href="<?php echo BASE_URL; ?>about.php" class="btn btn-outline">Learn More</a>
                 </div>
             </div>
-            <?php endforeach; ?>
-        </div>
-        <p style="margin-top:2rem">
-            <a href="news.php" class="btn btn-blue">View All News</a>
-        </p>
-        <?php else: ?>
-        <p style="color:var(--muted)">No news published yet.</p>
-        <?php endif; ?>
-    </div>
-</section>
-
-<!-- ── UPCOMING EVENTS ── -->
-<?php if ($events): ?>
-<section class="section section-alt">
-    <div class="container">
-        <h2 class="section-title">Upcoming Events</h2>
-        <p class="section-sub">Mark your calendar — don't miss these important dates.</p>
-
-        <?php foreach ($events as $ev): ?>
-        <div class="event-item">
-            <div class="event-date">
-                <div class="day"><?= date('d', strtotime($ev['event_date'])) ?></div>
-                <div class="month"><?= date('M Y', strtotime($ev['event_date'])) ?></div>
-            </div>
-            <div class="event-body">
-                <strong><?= htmlspecialchars($ev['title']) ?></strong>
-                <small>
-                    <?php if ($ev['location']): ?>
-                    📍 <?= htmlspecialchars($ev['location']) ?>
-                    <?php endif; ?>
-                    <?php if ($ev['start_time']): ?>
-                    &nbsp;·&nbsp; 🕗 <?= date('g:i A', strtotime($ev['start_time'])) ?>
-                    <?php endif; ?>
-                </small>
-                <?php if ($ev['description']): ?>
-                <p style="margin-top:.3rem;color:var(--muted);font-size:.9rem">
-                    <?= htmlspecialchars(excerpt($ev['description'], 100)) ?>
-                </p>
-                <?php endif; ?>
+            <div class="hero-visual">
+                <div class="hero-emblem">
+                    <div class="hero-emblem-inner">
+                        <span class="emblem-cross">✚</span>
+                        <span class="emblem-name">ST. MARY'S<br>SCHOOL</span>
+                        <span class="emblem-motto">Est. <?php echo htmlspecialchars($founded ?: '1985'); ?></span>
+                    </div>
+                </div>
             </div>
         </div>
-        <?php endforeach; ?>
-    </div>
-</section>
-<?php endif; ?>
+    </section>
 
-<!-- ── TESTIMONIALS ── -->
-<?php if ($testimonials): ?>
-<section class="section">
-    <div class="container">
-        <h2 class="section-title">What People Say</h2>
-        <p class="section-sub">Hear from our students and parents.</p>
-
-        <div class="cards-grid">
-            <?php foreach ($testimonials as $t): ?>
-            <div class="testimonial-card">
-                <p><?= htmlspecialchars($t['content']) ?></p>
-                <div class="testimonial-author"><?= htmlspecialchars($t['author_name']) ?></div>
-                <div class="testimonial-role"><?= htmlspecialchars($t['author_role'] ?? '') ?></div>
+    <!-- STATS -->
+    <section class="stats-bar">
+        <div class="stats-bar-inner">
+            <div class="stat-item">
+                <span class="stat-number"><?php echo htmlspecialchars($founded ?: '1985'); ?></span>
+                <span class="stat-label">Year Founded</span>
             </div>
-            <?php endforeach; ?>
+            <div class="stat-item">
+                <span class="stat-number"><?php echo htmlspecialchars($students ?: '1200'); ?>+</span>
+                <span class="stat-label">Students</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">98%</span>
+                <span class="stat-label">Pass Rate</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">40+</span>
+                <span class="stat-label">Qualified Staff</span>
+            </div>
         </div>
-    </div>
-</section>
-<?php endif; ?>
+    </section>
 
-<!-- ── CALL TO ACTION ── -->
-<section class="section section-alt">
-    <div class="container" style="text-align:center">
-        <h2 class="section-title">Ready to Join Us?</h2>
-        <p class="section-sub" style="margin-bottom:1.5rem">
-            Applications for 2026/27 are now open for S1 and S5 entry.
-        </p>
-        <a href="admissions.php" class="btn btn-primary" style="font-size:1.1rem;padding:.9rem 2.5rem">
-            Start Your Application
-        </a>
-    </div>
-</section>
+    <!-- WHY CHOOSE US -->
+    <section class="section">
+        <div class="container">
+            <div class="section-header center">
+                <span class="section-label">Why Choose Us</span>
+                <h2>A Foundation For Lifelong Success</h2>
+                <div class="divider" style="margin-left:auto;margin-right:auto;"></div>
+            </div>
+            <div class="grid-3">
+                <div class="feature-card">
+                    <div class="feature-icon">📚</div>
+                    <h3>Academic Excellence</h3>
+                    <p>A rigorous UNEB-aligned curriculum delivered by experienced, dedicated educators committed to every student's success.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤝</div>
+                    <h3>Character Formation</h3>
+                    <p>We nurture integrity, discipline, and compassion alongside academics, preparing well-rounded young leaders.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏆</div>
+                    <h3>Co-Curricular Excellence</h3>
+                    <p>From sports to music and clubs, students discover and develop their talents beyond the classroom.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- LATEST NEWS via AJAX -->
+    <section class="section" style="background:var(--white); padding-top:0;">
+        <div class="container">
+            <div class="section-header center">
+                <span class="section-label">Stay Informed</span>
+                <h2>Latest News &amp; Announcements</h2>
+                <div class="divider" style="margin-left:auto;margin-right:auto;"></div>
+            </div>
+            <div id="news-feed" class="grid-3">
+                <p style="text-align:center;grid-column:1/-1;color:var(--gray-400);">Loading news...</p>
+            </div>
+            <p style="text-align:center;margin-top:2.5rem;">
+                <a href="<?php echo BASE_URL; ?>news.php" class="btn btn-navy">View All News →</a>
+            </p>
+        </div>
+    </section>
+
+    <!-- UPCOMING EVENTS -->
+    <?php if ($events): ?>
+    <section class="section" style="background:var(--gray-100);">
+        <div class="container">
+            <div class="section-header center">
+                <span class="section-label">Mark Your Calendar</span>
+                <h2>Upcoming Events</h2>
+                <div class="divider" style="margin-left:auto;margin-right:auto;"></div>
+            </div>
+            <div class="grid-3">
+                <?php foreach ($events as $event): ?>
+                <div class="event-card">
+                    <div class="event-date-box">
+                        <span class="day"><?php echo date('d', strtotime($event['event_date'])); ?></span>
+                        <span class="month"><?php echo date('M', strtotime($event['event_date'])); ?></span>
+                    </div>
+                    <div class="event-info">
+                        <h3><?php echo htmlspecialchars($event['title']); ?></h3>
+                        <?php if (!empty($event['location'])): ?>
+                            <p class="event-location">📍 <?php echo htmlspecialchars($event['location']); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <!-- TESTIMONIALS -->
+    <?php if ($testimonials): ?>
+    <section class="section">
+        <div class="container">
+            <div class="section-header center">
+                <span class="section-label">Testimonials</span>
+                <h2>What Our Community Says</h2>
+                <div class="divider" style="margin-left:auto;margin-right:auto;"></div>
+            </div>
+            <div class="grid-3">
+                <?php foreach ($testimonials as $t): ?>
+                <div class="testimonial-card">
+                    <p class="testimonial-text">"<?php echo htmlspecialchars($t['content']); ?>"</p>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar"><?php echo strtoupper(substr($t['author_name'],0,1)); ?></div>
+                        <div>
+                            <div class="testimonial-name"><?php echo htmlspecialchars($t['author_name']); ?></div>
+                            <div class="testimonial-role"><?php echo htmlspecialchars($t['author_role']); ?></div>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <!-- CTA STRIP -->
+    <section style="background:linear-gradient(135deg,var(--navy),var(--navy-light)); padding:3.5rem 0; text-align:center;">
+        <div class="container">
+            <h2 style="color:#fff; margin-bottom:1rem;">Ready to Join Our School Family?</h2>
+            <p style="color:rgba(255,255,255,.75); max-width:560px; margin:0 auto 1.75rem;">
+                Applications for the upcoming academic year are now open. Give your child the foundation they deserve.
+            </p>
+            <a href="<?php echo BASE_URL; ?>admissions.php" class="btn btn-primary">Start Your Application →</a>
+        </div>
+    </section>
+
+</main>
 
 <?php require_once 'includes/footer.php'; ?>

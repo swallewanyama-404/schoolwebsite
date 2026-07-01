@@ -1,47 +1,31 @@
 <?php
-// ============================================================
-//  admin/login.php — Admin Login Page
-//  Open at: http://localhost/school-website/admin/login.php
-// ============================================================
+// ADMIN LOGIN page
 session_start();
-
-// Already logged in? Go straight to dashboard
-if (isset($_SESSION['admin_id'])) {
-    header('Location: dashboard.php');
-    exit;
-}
-
 require_once '../config/database.php';
 require_once '../includes/functions.php';
+
+if (isset($_SESSION['admin_id'])) {
+    header('Location: ' . BASE_URL . 'admin/dashboard.php');
+    exit;
+}
 
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = clean($_POST['email']    ?? '');
-    $pass  =       $_POST['password'] ?? '';   // raw — checked with password_verify()
+    $email    = clean($_POST['email']);
+    $password = $_POST['password']; // NOT cleaned — password_verify handles this
 
-    // Fetch active admin by email
-    $stmt = $pdo->prepare(
-        'SELECT * FROM admin_users WHERE email = ? AND is_active = 1 LIMIT 1'
-    );
-    $stmt->execute([$email]);
-    $user = $stmt->fetch();
+    $admin = loginAdmin($pdo, $email, $password);
 
-    // Verify password hash
-    if ($user && password_verify($pass, $user['password'])) {
-        // Set session
-        $_SESSION['admin_id']   = $user['id'];
-        $_SESSION['admin_name'] = $user['name'];
-        $_SESSION['admin_role'] = $user['role'];
-
-        // Update last_login timestamp
-        $pdo->prepare('UPDATE admin_users SET last_login = NOW() WHERE id = ?')
-            ->execute([$user['id']]);
-
-        header('Location: dashboard.php');
+    if ($admin) {
+        $_SESSION['admin_id']    = $admin['id'];
+        $_SESSION['admin_name']  = $admin['name'];
+        $_SESSION['admin_email'] = $admin['email'];
+        $_SESSION['admin_role']  = $admin['role'];
+        header('Location: ' . BASE_URL . 'admin/dashboard.php');
         exit;
     } else {
-        $error = 'Invalid email or password. Please try again.';
+        $error = 'Invalid email or password.';
     }
 }
 ?>
@@ -50,55 +34,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login</title>
-    <link rel="stylesheet" href="/school-website/assets/css/style.css">
-    <style>
-        body { background: var(--off); display: flex; align-items: center;
-               justify-content: center; min-height: 100vh; }
-        .login-box {
-            background: var(--white); border-radius: var(--radius-lg);
-            box-shadow: var(--shadow); padding: 2.5rem; width: 100%; max-width: 380px;
-        }
-        .login-logo { text-align: center; margin-bottom: 1.75rem; }
-        .login-logo .logo-name { font-size: 1.25rem; color: var(--navy); font-weight: 700; }
-        .login-logo small      { display: block; color: var(--muted); font-size: .85rem; }
-    </style>
+    <title>Admin Login &mdash; St. Mary's School</title>
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/css/style.css">
 </head>
-<body>
+<body style="background:linear-gradient(135deg,var(--navy),var(--navy-light)); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:1.5rem;">
+<main style="max-width:400px; width:100%;">
+    <div class="form-card" style="text-align:center;">
+        <div class="footer-badge" style="margin:0 auto 1.25rem; width:64px; height:64px;">
+            <span style="font-family:'Merriweather',serif;font-size:.85rem;font-weight:900;color:#fff;">SM</span>
+        </div>
+        <h1 style="font-size:1.4rem;margin-bottom:.25rem;">Admin Portal</h1>
+        <p style="margin-bottom:1.5rem;">St. Mary's School management login</p>
 
-<div class="login-box">
-    <div class="login-logo">
-        <div class="logo-name">Admin Panel</div>
-        <small>School Website Management</small>
+        <?php if ($error): ?>
+            <div class="alert alert-error" style="text-align:left;"><?php echo $error; ?></div>
+        <?php endif; ?>
+
+        <form method="POST" style="text-align:left;">
+            <div class="form-group">
+                <label>Email Address</label>
+                <input class="form-control" type="email" name="email" placeholder="admin@stmarys.ac.ug" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input class="form-control" type="password" name="password" placeholder="Enter your password" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Sign In &rarr;</button>
+        </form>
+        <p style="margin-top:1.5rem;font-size:.82rem;"><a href="<?php echo BASE_URL; ?>index.php">&larr; Back to Website</a></p>
     </div>
-
-    <?php if ($error): ?>
-    <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
-    <?php endif; ?>
-
-    <form method="POST">
-        <div class="form-group">
-            <label for="email">Email Address</label>
-            <input type="email" id="email" name="email"
-                   placeholder="admin@school.ug"
-                   required autofocus>
-        </div>
-
-        <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password"
-                   placeholder="Your password" required>
-        </div>
-
-        <button type="submit" class="btn btn-blue" style="width:100%;margin-top:.5rem">
-            Login to Admin Panel
-        </button>
-    </form>
-
-    <p style="text-align:center;margin-top:1.25rem;font-size:.875rem">
-        <a href="/school-website/">← Back to website</a>
-    </p>
-</div>
-
+</main>
 </body>
 </html>
